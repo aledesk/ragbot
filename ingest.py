@@ -13,7 +13,6 @@ CHUNK_SIZE      = 200
 CHUNK_OVERLAP   = 40
 VECTOR_DIM      = 384
 
-
 def extraer_texto_pdf(pdf_path):
     doc = fitz.open(pdf_path)
     paginas = []
@@ -25,7 +24,6 @@ def extraer_texto_pdf(pdf_path):
     doc.close()
     print(f"  → {len(paginas)} páginas extraídas")
     return paginas
-
 
 def chunking(paginas, size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
     chunks = []
@@ -47,13 +45,11 @@ def chunking(paginas, size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
     print(f"  → {len(chunks)} chunks generados")
     return chunks
 
-
 def tfidf_vector(row, dim=VECTOR_DIM):
     arr = np.array(row.todense()).flatten()
     arr = arr[:dim] if len(arr) >= dim else np.pad(arr, (0, dim - len(arr)))
     norm = np.linalg.norm(arr)
     return (arr / norm if norm > 0 else arr).tolist()
-
 
 def indexar(chunks, pdf_nombre):
     textos = [c["text"] for c in chunks]
@@ -61,21 +57,15 @@ def indexar(chunks, pdf_nombre):
     vectorizer = TfidfVectorizer(max_features=VECTOR_DIM, ngram_range=(1, 2))
     mat = vectorizer.fit_transform(textos)
     embeddings = [tfidf_vector(mat[i]) for i in range(len(textos))]
-
     Path(CHROMA_PATH).mkdir(exist_ok=True)
     with open(f"{CHROMA_PATH}/vectorizer.pkl", "wb") as f:
         pickle.dump(vectorizer, f)
-
     chroma = chromadb.PersistentClient(path=CHROMA_PATH)
     try:
         chroma.delete_collection(COLLECTION_NAME)
     except Exception:
         pass
-
-    col = chroma.get_or_create_collection(
-        name=COLLECTION_NAME,
-        metadata={"hnsw:space": "cosine"}
-    )
+    col = chroma.get_or_create_collection(name=COLLECTION_NAME, metadata={"hnsw:space": "cosine"})
     col.add(
         ids=[c["id"] for c in chunks],
         documents=textos,
@@ -84,7 +74,6 @@ def indexar(chunks, pdf_nombre):
     )
     print(f"  → {len(chunks)} chunks indexados")
 
-
 def ingestar_pdf(pdf_path):
     path = Path(pdf_path)
     print(f"\n🔄 Ingesta: {path.name}")
@@ -92,7 +81,6 @@ def ingestar_pdf(pdf_path):
     chunks  = chunking(paginas)
     indexar(chunks, path.name)
     print(f"\n✅ {len(chunks)} chunks listos.\n")
-
 
 if __name__ == "__main__":
     ingestar_pdf("./data/lista_precios_mayorista.pdf")

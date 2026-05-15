@@ -27,73 +27,54 @@ Reglas:
 - Respondé en español rioplatense (vos, ustedes)."""
 
 app = FastAPI(title="RAG Mayorista API")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 groq_client = Groq()
-
-def get_collection():
-    chroma = chromadb.PersistentClient(path=CHROMA_PATH)
-    return chroma.get_collection(name=COLLECTION_NAME)
 
 def get_vectorizer():
     with open(f"{CHROMA_PATH}/vectorizer.pkl", "rb") as f:
         return pickle.load(f)
 
-def embed_query(query: str, vectorizer) -> list[float]:
+def embed_query(query, vectorizer):
     mat = vectorizer.transform([query])
     arr = np.array(mat.todense()).flatten()
     arr = arr[:VECTOR_DIM] if len(arr) >= VECTOR_DIM else np.pad(arr, (0, VECTOR_DIM - len(arr)))
     norm = np.linalg.norm(arr)
     return (arr / norm if norm > 0 else arr).tolist()
 
-def recuperar_contexto(query: str) -> tuple[str, list[dict]]:
+def recuperar_contexto(query):
     vectorizer = get_vectorizer()
-    collection = get_collection()
-    embedding  = embed_query(query, vectorizer)
-    results = collection.query(
-        query_embeddings=[embedding],
-        n_results=TOP_K,
-        include=["documents", "metadatas", "distances"],
-    )
-    chunks     = results["documents"][0]
-    metas      = results["metadatas"][0]
-    distancias = results["distances"][0]
-    fuentes, contexto_parts = [], []
-    for i, (chunk, meta, dist) in enumerate(zip(chunks, metas, distancias)):
-        contexto_parts.append(f"[Fragmento {i+1} — Página {meta['page']}]\n{chunk}")
-        fuentes.append({"page": meta["page"], "source": meta["source"], "relevancia": round(1 - dist, 3)})
-    return "\n\n---\n\n".join(contexto_parts), fuentes
+    chroma = chromadb.PersistentClient(path=CHROMA_PATH)
+    collection = chroma.get_collection(name=COLLECTION_NAME)
+    embedding = embed_query(query, vectorizer)
+    results = collection.query(query_embeddings=[embedding], n_results=TOP_K, include=["documents","metadatas","distances"])
+    chunks, metas, dists = results["documents"][0], results["metadatas"][0], results["distances"][0]
+    fuentes, partes = [], []
+    for i, (c, m, d) in enumerate(zip(chunks, metas, dists)):
+        partes.append(f"[Fragmento {i+1} — Página {m['page']}]\n{c}")
+        fuentes.append({"page": m["page"], "source": m["source"], "relevancia": round(1-d, 3)})
+    return "\n\n---\n\n".join(partes), fuentes
 
-def generar_respuesta(pregunta: str, contexto: str) -> str:
+def generar_respuesta(pregunta, contexto):
     prompt = f"Contexto del catálogo:\n\n{contexto}\n\n---\n\nPregunta del cliente: {pregunta}"
-    response = groq_client.chat.completions.create(
+    r = groq_client.chat.completions.create(
         model=GROQ_MODEL,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user",   "content": prompt},
-        ],
+        messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}],
         max_tokens=800,
     )
-    return response.choices[0].message.content
+    return r.choices[0].message.content
 
 class QueryRequest(BaseModel):
     pregunta: str
 
 class QueryResponse(BaseModel):
     respuesta: str
-    fuentes:   list[dict]
-    pregunta:  str
+    fuentes: list[dict]
+    pregunta: str
 
 @app.post("/api/chat", response_model=QueryResponse)
 def chat(req: QueryRequest):
     if not req.pregunta.strip():
-        raise HTTPException(400, "La pregunta no puede estar vacía")
+        raise HTTPException(400, "Pregunta vacía")
     contexto, fuentes = recuperar_contexto(req.pregunta)
     respuesta = generar_respuesta(req.pregunta, contexto)
     return QueryResponse(respuesta=respuesta, fuentes=fuentes, pregunta=req.pregunta)
