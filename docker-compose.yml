@@ -1,0 +1,22 @@
+version: "3.8"
+
+services:
+  rag-app:
+    build: .
+    container_name: rag-app
+    restart: unless-stopped
+    volumes:
+      - rag-data:/app/data
+      - rag-chroma:/app/chroma_db
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY}
+    networks:
+      - proxy
+
+volumes:
+  rag-data:
+  rag-chroma:
+
+networks:
+  proxy:
+    external: true
