@@ -1,17 +1,18 @@
 import chromadb
+import pickle
 import numpy as np
 from pathlib import Path
-from sentence_transformers import SentenceTransformer
+from sklearn.feature_extraction.text import TfidfVectorizer
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from groq import Groq
 
 CHROMA_PATH     = "./chroma_db"
 COLLECTION_NAME = "mayorista_docs"
-TOP_K           = 4
-MODEL_NAME      = "paraphrase-multilingual-MiniLM-L12-v2"
+VECTOR_DIM      = 384
+TOP_K           = 6
 GROQ_MODEL      = "llama-3.3-70b-versatile"
 
 SYSTEM_PROMPT = """Sos el asistente de ventas de Distribuidora Norte.
@@ -34,23 +35,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-print("⏳ Cargando modelo de embeddings...")
-embedder = SentenceTransformer(MODEL_NAME)
-print("✅ Modelo cargado")
+groq_client = Groq()
 
-chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
-collection    = chroma_client.get_collection(name=COLLECTION_NAME)
-groq_client   = Groq()
+def get_collection():
+    chroma = chromadb.PersistentClient(path=CHROMA_PATH)
+    return chroma.get_collection(name=COLLECTION_NAME)
 
-print("✅ RAG backend listo con embeddings semánticos + Groq")
+def get_vectorizer():
+    with open(f"{CHROMA_PATH}/vectorizer.pkl", "rb") as f:
+        return pickle.load(f)
 
-
-def embed_query(query: str) -> list[float]:
-    return embedder.encode([query])[0].tolist()
-
+def embed_query(query: str, vectorizer) -> list[float]:
+    mat = vectorizer.transform([query])
+    arr = np.array(mat.todense()).flatten()
+    arr = arr[:VECTOR_DIM] if len(arr) >= VECTOR_DIM else np.pad(arr, (0, VECTOR_DIM - len(arr)))
+    norm = np.linalg.norm(arr)
+    return (arr / norm if norm > 0 else arr).tolist()
 
 def recuperar_contexto(query: str) -> tuple[str, list[dict]]:
-    embedding = embed_query(query)
+    vectorizer = get_vectorizer()
+    collection = get_collection()
+    embedding  = embed_query(query, vectorizer)
     results = collection.query(
         query_embeddings=[embedding],
         n_results=TOP_K,
@@ -59,14 +64,11 @@ def recuperar_contexto(query: str) -> tuple[str, list[dict]]:
     chunks     = results["documents"][0]
     metas      = results["metadatas"][0]
     distancias = results["distances"][0]
-
     fuentes, contexto_parts = [], []
     for i, (chunk, meta, dist) in enumerate(zip(chunks, metas, distancias)):
         contexto_parts.append(f"[Fragmento {i+1} — Página {meta['page']}]\n{chunk}")
         fuentes.append({"page": meta["page"], "source": meta["source"], "relevancia": round(1 - dist, 3)})
-
     return "\n\n---\n\n".join(contexto_parts), fuentes
-
 
 def generar_respuesta(pregunta: str, contexto: str) -> str:
     prompt = f"Contexto del catálogo:\n\n{contexto}\n\n---\n\nPregunta del cliente: {pregunta}"
@@ -80,7 +82,6 @@ def generar_respuesta(pregunta: str, contexto: str) -> str:
     )
     return response.choices[0].message.content
 
-
 class QueryRequest(BaseModel):
     pregunta: str
 
@@ -88,7 +89,6 @@ class QueryResponse(BaseModel):
     respuesta: str
     fuentes:   list[dict]
     pregunta:  str
-
 
 @app.post("/api/chat", response_model=QueryResponse)
 def chat(req: QueryRequest):
@@ -98,11 +98,9 @@ def chat(req: QueryRequest):
     respuesta = generar_respuesta(req.pregunta, contexto)
     return QueryResponse(respuesta=respuesta, fuentes=fuentes, pregunta=req.pregunta)
 
-
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "chunks_indexados": collection.count()}
-
+    return {"status": "ok"}
 
 @app.get("/", response_class=HTMLResponse)
 def index():
