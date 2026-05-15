@@ -3,18 +3,15 @@ import chromadb
 import hashlib
 import re
 import pickle
+import numpy as np
 from pathlib import Path
-from sentence_transformers import SentenceTransformer
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 CHROMA_PATH     = "./chroma_db"
 COLLECTION_NAME = "mayorista_docs"
 CHUNK_SIZE      = 200
 CHUNK_OVERLAP   = 40
-MODEL_NAME      = "paraphrase-multilingual-MiniLM-L12-v2"
-
-print("⏳ Cargando modelo de embeddings...")
-model = SentenceTransformer(MODEL_NAME)
-print("✅ Modelo cargado")
+VECTOR_DIM      = 384
 
 
 def extraer_texto_pdf(pdf_path):
@@ -51,12 +48,23 @@ def chunking(paginas, size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
     return chunks
 
 
+def tfidf_vector(row, dim=VECTOR_DIM):
+    arr = np.array(row.todense()).flatten()
+    arr = arr[:dim] if len(arr) >= dim else np.pad(arr, (0, dim - len(arr)))
+    norm = np.linalg.norm(arr)
+    return (arr / norm if norm > 0 else arr).tolist()
+
+
 def indexar(chunks, pdf_nombre):
     textos = [c["text"] for c in chunks]
-    print("  → Generando embeddings semánticos...")
-    embeddings = model.encode(textos, show_progress_bar=True).tolist()
+    print("  → Generando embeddings TF-IDF...")
+    vectorizer = TfidfVectorizer(max_features=VECTOR_DIM, ngram_range=(1, 2))
+    mat = vectorizer.fit_transform(textos)
+    embeddings = [tfidf_vector(mat[i]) for i in range(len(textos))]
 
     Path(CHROMA_PATH).mkdir(exist_ok=True)
+    with open(f"{CHROMA_PATH}/vectorizer.pkl", "wb") as f:
+        pickle.dump(vectorizer, f)
 
     chroma = chromadb.PersistentClient(path=CHROMA_PATH)
     try:
@@ -74,7 +82,7 @@ def indexar(chunks, pdf_nombre):
         embeddings=embeddings,
         metadatas=[{"page": c["page"], "part": c["part"], "source": pdf_nombre} for c in chunks],
     )
-    print(f"  → {len(chunks)} chunks indexados con embeddings semánticos")
+    print(f"  → {len(chunks)} chunks indexados")
 
 
 def ingestar_pdf(pdf_path):
