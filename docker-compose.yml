@@ -5,6 +5,8 @@ services:
     build: .
     container_name: rag-app
     restart: unless-stopped
+    ports:
+      - "9050:8000"
     volumes:
       - rag-data:/app/data
       - rag-chroma:/app/chroma_db
