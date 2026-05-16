@@ -76,9 +76,10 @@
       <svg width="18" height="18" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
     </button>
   </div>
-  <div class="footer">Conectado al backend RAG local · puerto 8000</div>
+  <div class="footer">demo.estudiocreativo.io · RAGBOT por Estudio</div>
 </div>
 <script>
+const API_URL = 'http://207.246.86.80:9050/api/chat';
 function addMsg(role, text, sources) {
   const c = document.getElementById('msgs');
   const w = document.createElement('div');
@@ -118,7 +119,7 @@ async function send() {
   inp.value = ''; inp.style.height = 'auto';
   addTyping();
   try {
-    const r = await fetch('http://localhost:8000/api/chat', {
+    const r = await fetch(API_URL, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({pregunta: txt})
@@ -130,7 +131,7 @@ async function send() {
     removeTyping();
     const err = document.createElement('div');
     err.className = 'error'; err.style.margin = '0 20px 10px';
-    err.textContent = '❌ No se pudo conectar al backend. Verificá que el servidor esté corriendo.';
+    err.textContent = '❌ No se pudo conectar al servidor.';
     document.getElementById('msgs').appendChild(err);
   }
   document.getElementById('btn').disabled = false;
