@@ -11,7 +11,7 @@ from pathlib import Path
 
 app = FastAPI()
 
-# Configuramos la ruta base absoluta de forma dinámica
+# Forzamos la ruta absoluta apuntando a la raíz del proyecto en Render
 BASE_DIR = Path(__file__).resolve().parent
 CHROMA_PATH = str(BASE_DIR / "chroma_db")
 COLLECTION_NAME = "mayorista_docs"
@@ -20,7 +20,7 @@ VECTOR_DIM = 384
 chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
 collection = chroma_client.get_or_create_collection(name=COLLECTION_NAME, metadata={"hnsw:space": "cosine"})
 
-# Cargamos el vectorizer usando la nueva ruta absoluta armada dinámicamente
+# Cargamos el archivo vectorizer.pkl asegurando su ubicación exacta
 with open(os.path.join(CHROMA_PATH, "vectorizer.pkl"), "rb") as f:
     vectorizer = pickle.load(f)
 
@@ -47,15 +47,15 @@ def recuperar_contexto(pregunta: str):
     query_vector = transformar_pregunta_a_embedding(pregunta)
     res = collection.query(query_embeddings=[query_vector], n_results=3)
     
-    if not res["documents"] or not res["documents"]:
+    if not res["documents"] or not res["documents"][0]:
         return "", []
         
-    contexto = "\n".join(res["documents"])
+    contexto = "\n".join(res["documents"][0])
     fuentes = []
-    for i in range(len(res["documents"])):
-        distancia = res["distances"][i] if res["distances"] else 0.5
+    for i in range(len(res["documents"][0])):
+        distancia = res["distances"][0][i] if res["distances"] else 0.5
         relevancia = max(0.0, min(1.0, 1.0 - distancia))
-        page = res["metadatas"][i]["page"] if res["metadatas"] else 1
+        page = res["metadatas"][0][i]["page"] if res["metadatas"] else 1
         fuentes.append(SourceItem(page=page, relevancia=relevancia))
         
     return contexto, fuentes
@@ -93,5 +93,7 @@ def health():
 
 @app.get("/", response_class=HTMLResponse)
 def index():
-    with open("frontend/index.html") as f:
+    # Corregimos la ruta para abrir el HTML desde la raíz
+    html_path = BASE_DIR / "frontend" / "index.html"
+    with open(html_path, "r", encoding="utf-8") as f:
         return f.read()
