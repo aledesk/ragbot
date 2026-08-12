@@ -330,8 +330,11 @@
     </div>
     <div class="footer">demo.estudiocreativo.io · RAGBOT por Estudio</div>
   </div>
+
   <script>
-    const API_URL = '/api/chat';
+    // Se actualizó la URL para apuntar al backend de Render
+    const API_URL = 'https://onrender.com';
+
     function addMsg(role, text, sources) {
       const c = document.getElementById('msgs');
       const w = document.createElement('div');
@@ -348,19 +351,25 @@
       c.appendChild(w);
       c.scrollTop = c.scrollHeight;
     }
+
     function addTyping() {
       const c = document.getElementById('msgs');
       const w = document.createElement('div');
-      w.className = 'msg bot'; w.id = 'typing';
+      w.className = 'msg bot';
+      w.id = 'typing';
       w.innerHTML = '<div class="msg-av">DN</div><div class="typing"><span></span><span></span><span></span></div>';
-      c.appendChild(w); c.scrollTop = c.scrollHeight;
+      c.appendChild(w);
+      c.scrollTop = c.scrollHeight;
     }
+
     function removeTyping() {const e = document.getElementById('typing'); if (e) e.remove();}
+
     function useSug(btn) {
       document.getElementById('inp').value = btn.textContent;
       document.getElementById('sugs').style.display = 'none';
       send();
     }
+
     async function send() {
       const inp = document.getElementById('inp');
       const txt = inp.value.trim();
@@ -368,7 +377,8 @@
       document.getElementById('btn').disabled = true;
       document.getElementById('sugs').style.display = 'none';
       addMsg('user', txt);
-      inp.value = ''; inp.style.height = 'auto';
+      inp.value = '';
+      inp.style.height = 'auto';
       addTyping();
       try {
         const r = await fetch(API_URL, {
@@ -382,13 +392,14 @@
       } catch (e) {
         removeTyping();
         const err = document.createElement('div');
-        err.className = 'error'; err.style.margin = '0 20px 10px';
+        err.className = 'error';
+        err.style.margin = '0 20px 10px';
         err.textContent = '❌ No se pudo conectar al servidor.';
         document.getElementById('msgs').appendChild(err);
       }
       document.getElementById('btn').disabled = false;
       inp.focus();
-    }
+    } 
   </script>
 </body>
 

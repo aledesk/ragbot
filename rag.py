@@ -4,12 +4,22 @@ import numpy as np
 import chromadb
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
 from groq import Groq
 from pathlib import Path
 
 app = FastAPI()
+
+# Configuración de CORS para permitir peticiones desde tu hosting
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://estudiocreativo.io"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Forzamos la ruta absoluta apuntando a la raíz del proyecto en Render
 BASE_DIR = Path(__file__).resolve().parent
