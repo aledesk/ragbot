@@ -7,17 +7,21 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from typing import List
 from groq import Groq
+from pathlib import Path
 
 app = FastAPI()
 
-CHROMA_PATH = "./chroma_db"
+# Configuramos la ruta base absoluta de forma dinámica
+BASE_DIR = Path(__file__).resolve().parent
+CHROMA_PATH = str(BASE_DIR / "chroma_db")
 COLLECTION_NAME = "mayorista_docs"
 VECTOR_DIM = 384
 
 chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
 collection = chroma_client.get_or_create_collection(name=COLLECTION_NAME, metadata={"hnsw:space": "cosine"})
 
-with open(f"{CHROMA_PATH}/vectorizer.pkl", "rb") as f:
+# Cargamos el vectorizer usando la nueva ruta absoluta armada dinámicamente
+with open(os.path.join(CHROMA_PATH, "vectorizer.pkl"), "rb") as f:
     vectorizer = pickle.load(f)
 
 class QueryRequest(BaseModel):
@@ -43,15 +47,15 @@ def recuperar_contexto(pregunta: str):
     query_vector = transformar_pregunta_a_embedding(pregunta)
     res = collection.query(query_embeddings=[query_vector], n_results=3)
     
-    if not res["documents"] or not res["documents"][0]:
+    if not res["documents"] or not res["documents"]:
         return "", []
         
-    contexto = "\n".join(res["documents"][0])
+    contexto = "\n".join(res["documents"])
     fuentes = []
-    for i in range(len(res["documents"][0])):
-        distancia = res["distances"][0][i] if res["distances"] else 0.5
+    for i in range(len(res["documents"])):
+        distancia = res["distances"][i] if res["distances"] else 0.5
         relevancia = max(0.0, min(1.0, 1.0 - distancia))
-        page = res["metadatas"][0][i]["page"] if res["metadatas"] else 1
+        page = res["metadatas"][i]["page"] if res["metadatas"] else 1
         fuentes.append(SourceItem(page=page, relevancia=relevancia))
         
     return contexto, fuentes
@@ -73,7 +77,7 @@ Respuesta:"""
         messages=[{"role": "user", "content": prompt}],
         temperature=0.2,
     )
-    return completion.choices[0].message.content
+    return completion.choices.message.content
 
 @app.post("/api/chat", response_model=QueryResponse)
 def chat(req: QueryRequest):
