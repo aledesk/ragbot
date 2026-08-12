@@ -1,0 +1,6 @@
+Portainer
+
+http://207.246.86.80:9000/
+
+user	alevara
+pass	PipiDAmerca26@

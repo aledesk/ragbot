@@ -1,0 +1,23 @@
+version: "3.8"
+
+services:
+  rag-app:
+    build: .
+    container_name: rag-app
+    env_file: .env
+    restart: unless-stopped
+    ports:
+      - "9050:8000"
+    volumes:
+      - rag-data:/app/data
+      - rag-chroma:/app/chroma_db
+    networks:
+      - proxy
+
+volumes:
+  rag-data:
+  rag-chroma:
+
+networks:
+  proxy:
+    external: true
