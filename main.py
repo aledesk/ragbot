@@ -108,3 +108,8 @@ def index():
     with open(html_path, "r", encoding="utf-8") as f:
         return f.read()
 
+# Bloque de arranque agregado: obliga a la app a escuchar en el puerto asignado dinámicamente por Render
+if __name__ == "__main__":
+    import uvicorn
+    puerto = int(os.environ.get("PORT", 10000))
+    uvicorn.run("main:app", host="0.0.0.0", port=puerto)
