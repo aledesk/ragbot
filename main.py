@@ -31,7 +31,7 @@ chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
 collection = chroma_client.get_or_create_collection(name=COLLECTION_NAME, metadata={"hnsw:space": "cosine"})
 
 # Cargamos el archivo vectorizer.pkl asegurando su ubicación exacta
-with open(os.path.join(CHROMA_PATH, "vectorizer.pkl"), "rb") as f:
+with open(BASE_DIR / "chroma_db" / "vectorizer.pkl", "rb") as f:
     vectorizer = pickle.load(f)
 
 class QueryRequest(BaseModel):
