@@ -55,12 +55,13 @@ def recuperar_contexto(pregunta: str):
     query_vector = transformar_pregunta_a_embedding(pregunta)
     res = collection.query(query_embeddings=[query_vector], n_results=3)
     
-    if not res["documents"] or not res["documents"]:
+    # CORRECCIÓN DEFINITIVA: Extraemos el primer elemento [0] para romper la lista de listas de ChromaDB
+    if not res["documents"] or not res["documents"][0]:
         return "", []
         
-    docs_lista = res["documents"]
-    distances_lista = res["distances"] if res["distances"] else []
-    metadatas_lista = res["metadatas"] if res["metadatas"] else []
+    docs_lista = res["documents"][0]
+    distances_lista = res["distances"][0] if res["distances"] else []
+    metadatas_lista = res["metadatas"][0] if res["metadatas"] else []
     
     contexto = "\n".join(docs_lista)
     fuentes = []
@@ -91,7 +92,6 @@ Respuesta:"""
     )
     return completion.choices.message.content
 
-# Volvemos a la estructura limpia estándar que interactúa correctamente con el Middleware de CORS
 @app.post("/api/chat", response_model=QueryResponse)
 def chat(req: QueryRequest):
     if not req.pregunta.strip():
