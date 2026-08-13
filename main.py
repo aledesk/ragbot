@@ -12,12 +12,18 @@ from pathlib import Path
 
 app = FastAPI()
 
-# Configuración de CORS corregida para permitir peticiones desde cualquier origen (Render, Local y tu Hosting)
+# Configuración de CORS ultra-compatible para tu Hosting y Render
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://estudiocreativo.io",
+        "https://estudiocreativo.io",
+        "https://ragbot-iwm5.onrender.com",
+        "http://localhost:10000",
+        "http://localhost:8000"
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "HEAD", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -57,7 +63,6 @@ def recuperar_contexto(pregunta: str):
     query_vector = transformar_pregunta_a_embedding(pregunta)
     res = collection.query(query_embeddings=[query_vector], n_results=3)
     
-    # CORRECCIÓN AQUÍ: Se verifica y accede correctamente a la estructura de lista de listas de ChromaDB
     if not res["documents"] or not res["documents"][0]:
         return "", []
         
@@ -106,15 +111,12 @@ def chat(req: QueryRequest):
 def health():
     return {"status": "ok"}
 
-# Corregido usando api_route para soportar tanto GET como HEAD en Render correctamente
 @app.api_route("/", response_class=HTMLResponse, methods=["GET", "HEAD"])
 def index():
-    # Corregimos la ruta para abrir el HTML desde la raíz
     html_path = BASE_DIR / "frontend" / "index.html"
     with open(html_path, "r", encoding="utf-8") as f:
         return f.read()
 
-# Bloque de arranque agregado: obliga a la app a escuchar en el puerto asignado dinámicamente por Render
 if __name__ == "__main__":
     import uvicorn
     puerto = int(os.environ.get("PORT", 10000))
