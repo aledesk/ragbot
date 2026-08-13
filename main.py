@@ -90,7 +90,8 @@ Respuesta:"""
         messages=[{"role": "user", "content": prompt}],
         temperature=0.2,
     )
-    return completion.choices.message.content
+    # Reemplaza la línea que falla por esta (añadiendo el [0]):
+    return completion.choices[0].message.content
 
 @app.post("/api/chat", response_model=QueryResponse)
 def chat(req: QueryRequest):
