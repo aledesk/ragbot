@@ -57,15 +57,20 @@ def recuperar_contexto(pregunta: str):
     query_vector = transformar_pregunta_a_embedding(pregunta)
     res = collection.query(query_embeddings=[query_vector], n_results=3)
     
-    if not res["documents"] or not res["documents"]:
+    # CORRECCIÓN AQUÍ: Se verifica y accede correctamente a la estructura de lista de listas de ChromaDB
+    if not res["documents"] or not res["documents"][0]:
         return "", []
         
-    contexto = "\n".join(res["documents"])
+    docs_lista = res["documents"][0]
+    distances_lista = res["distances"][0] if res["distances"] else []
+    metadatas_lista = res["metadatas"][0] if res["metadatas"] else []
+    
+    contexto = "\n".join(docs_lista)
     fuentes = []
-    for i in range(len(res["documents"])):
-        distancia = res["distances"][i] if res["distances"] else 0.5
+    for i in range(len(docs_lista)):
+        distancia = distances_lista[i] if i < len(distances_lista) else 0.5
         relevancia = max(0.0, min(1.0, 1.0 - distancia))
-        page = res["metadatas"][i]["page"] if res["metadatas"] else 1
+        page = metadatas_lista[i]["page"] if (i < len(metadatas_lista) and "page" in metadatas_lista[i]) else 1
         fuentes.append(SourceItem(page=page, relevancia=relevancia))
         
     return contexto, fuentes
