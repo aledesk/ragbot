@@ -2,7 +2,7 @@ import os
 import pickle
 import numpy as np
 import chromadb
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -12,12 +12,12 @@ from pathlib import Path
 
 app = FastAPI()
 
-# Mantenemos el middleware por compatibilidad general
+# Configuración de CORS corregida y ampliada para procesar correctamente las peticiones OPTIONS previas del navegador
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "HEAD", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -91,14 +91,9 @@ Respuesta:"""
     )
     return completion.choices.message.content
 
-# Forzamos las cabeceras de CORS directamente en la respuesta del endpoint de chat
+# Volvemos a la estructura limpia estándar que interactúa correctamente con el Middleware de CORS
 @app.post("/api/chat", response_model=QueryResponse)
-def chat(req: QueryRequest, response: Response):
-    # Inyección manual de cabeceras CORS de libre acceso para navegadores
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "POST, GET, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    
+def chat(req: QueryRequest):
     if not req.pregunta.strip():
         raise HTTPException(400, "Pregunta vacía")
     contexto, fuentes = recuperar_contexto(req.pregunta)
