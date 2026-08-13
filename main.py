@@ -2,7 +2,7 @@ import os
 import pickle
 import numpy as np
 import chromadb
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -12,22 +12,15 @@ from pathlib import Path
 
 app = FastAPI()
 
-# Configuración de CORS ultra-compatible para tu Hosting y Render
+# Mantenemos el middleware por compatibilidad general
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://estudiocreativo.io",
-        "https://estudiocreativo.io",
-        "https://ragbot-iwm5.onrender.com",
-        "http://localhost:10000",
-        "http://localhost:8000"
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "HEAD", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Forzamos la ruta absoluta apuntando a la raíz del proyecto en Render
 BASE_DIR = Path(__file__).resolve().parent
 CHROMA_PATH = str(BASE_DIR / "chroma_db")
 COLLECTION_NAME = "mayorista_docs"
@@ -36,7 +29,6 @@ VECTOR_DIM = 384
 chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
 collection = chroma_client.get_or_create_collection(name=COLLECTION_NAME, metadata={"hnsw:space": "cosine"})
 
-# Cargamos el archivo vectorizer.pkl asegurando su ubicación exacta
 with open(BASE_DIR / "chroma_db" / "vectorizer.pkl", "rb") as f:
     vectorizer = pickle.load(f)
 
@@ -63,12 +55,12 @@ def recuperar_contexto(pregunta: str):
     query_vector = transformar_pregunta_a_embedding(pregunta)
     res = collection.query(query_embeddings=[query_vector], n_results=3)
     
-    if not res["documents"] or not res["documents"][0]:
+    if not res["documents"] or not res["documents"]:
         return "", []
         
-    docs_lista = res["documents"][0]
-    distances_lista = res["distances"][0] if res["distances"] else []
-    metadatas_lista = res["metadatas"][0] if res["metadatas"] else []
+    docs_lista = res["documents"]
+    distances_lista = res["distances"] if res["distances"] else []
+    metadatas_lista = res["metadatas"] if res["metadatas"] else []
     
     contexto = "\n".join(docs_lista)
     fuentes = []
@@ -99,8 +91,14 @@ Respuesta:"""
     )
     return completion.choices.message.content
 
+# Forzamos las cabeceras de CORS directamente en la respuesta del endpoint de chat
 @app.post("/api/chat", response_model=QueryResponse)
-def chat(req: QueryRequest):
+def chat(req: QueryRequest, response: Response):
+    # Inyección manual de cabeceras CORS de libre acceso para navegadores
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "POST, GET, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    
     if not req.pregunta.strip():
         raise HTTPException(400, "Pregunta vacía")
     contexto, fuentes = recuperar_contexto(req.pregunta)
