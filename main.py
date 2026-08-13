@@ -101,7 +101,8 @@ def chat(req: QueryRequest):
 def health():
     return {"status": "ok"}
 
-@app.get("/", response_class=HTMLResponse)
+# Modificado para aceptar las peticiones HEAD del balanceador de Render
+@app.get("/", response_class=HTMLResponse, methods=["GET", "HEAD"])
 def index():
     # Corregimos la ruta para abrir el HTML desde la raíz
     html_path = BASE_DIR / "frontend" / "index.html"
