@@ -12,10 +12,10 @@ from pathlib import Path
 
 app = FastAPI()
 
-# Configuración de CORS para permitir peticiones desde tu hosting
+# Configuración de CORS corregida para permitir peticiones desde cualquier origen (Render, Local y tu Hosting)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://estudiocreativo.io"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
