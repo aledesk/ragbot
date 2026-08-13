@@ -55,7 +55,7 @@ def recuperar_contexto(pregunta: str):
     query_vector = transformar_pregunta_a_embedding(pregunta)
     res = collection.query(query_embeddings=[query_vector], n_results=3)
     
-    # CORRECCIÓN DEFINITIVA: Extraemos el primer elemento [0] para romper la lista de listas de ChromaDB
+    # CORRECCIÓN DE EXTRACCIÓN: Accedemos al primer elemento [0] para obtener las listas planas
     if not res["documents"] or not res["documents"][0]:
         return "", []
         
