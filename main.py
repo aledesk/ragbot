@@ -75,23 +75,30 @@ def recuperar_contexto(pregunta: str):
 
 def generar_respuesta(pregunta: str, contexto: str):
     client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-    prompt = f"""Sos el asistente virtual de Distribuidora Norte. 
-Responde la pregunta basándote únicamente en el contexto provisto abajo.
-Si no encontrás la respuesta en el contexto, decí amablemente que no tenés esa información.
+    
+    # Prompt optimizado para que sea un vendedor seguro y use los precios del PDF
+    system_prompt = """Sos el asistente virtual de atención al cliente de Distribuidora Norte.
+Tu objetivo principal es ayudar al usuario con precios, stock o condiciones comerciales usando el contexto brindado.
 
-Contexto:
-{contexto}
+REGLAS ESTRÍCTAS:
+1. Responde de forma amable, clara y concisa (estilo vendedor argentino neutral-cordial). Usa viñetas (bullet points) para listar productos y precios de forma ordenada.
+2. Busca activamente los números, códigos y precios en el contexto. Si están ahí, bríndalos con total seguridad. No digas que no los tenés si figuran en el texto.
+3. Si el usuario te pregunta por precios o datos que NO figuran en el contexto bajo ningún concepto, responde: "No encuentro ese producto o precio en nuestra lista vigente. Por favor, aguardá en línea y te comunico con un asesor humano."
+4. NUNCA inventes precios, marcas, códigos o políticas que no estén explícitamente en el texto provisto.
+"""
 
-Pregunta: {pregunta}
-Respuesta:"""
+    user_content = f"""Contexto del catálogo:\n{contexto}\n\nPregunta del usuario: {pregunta}"""
 
     completion = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.2,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content}
+        ],
+        temperature=0.3, # Temperatura ideal para mantenerlo creativo pero preciso con los datos
     )
-    # Reemplaza la línea que falla por esta (añadiendo el [0]):
     return completion.choices[0].message.content
+
 
 @app.post("/api/chat", response_model=QueryResponse)
 def chat(req: QueryRequest):
