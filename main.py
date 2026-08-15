@@ -73,18 +73,40 @@ def recuperar_contexto(pregunta: str):
         
     return contexto, fuentes
 
+# Configuración del Plan del Cliente (Cambiar según lo contratado)
+# Opciones válidas: "Emprendedor", "Profesional", "Empresa"
+PLAN_ACTUAL = "Emprendedor" 
+
 def generar_respuesta(pregunta: str, contexto: str):
+    import os
+    from groq import Groq
     client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
     
-    # Prompt optimizado para que sea un vendedor seguro y use los precios del PDF
-    system_prompt = """Sos el asistente virtual de atención al cliente de Distribuidora Norte.
+    # 1. Definimos los comportamientos específicos cuando falta información
+    if PLAN_ACTUAL == "Emprendedor":
+        # Plan Emprendedor (Ex Plan Básico): Discurso inflado y pedido de datos asincrónico
+        discurso_insuficiencia = """Si la respuesta NO figura en el contexto o te piden precios/tarjetas que no ves, responde EXACTAMENTE con este discurso muy profesional e inflado:
+'¡Excelente elección! Debido a la altísima demanda de nuestros productos y para garantizarte los mejores descuentos mayoristas actualizados al minuto, junto con los costos de logística exactos para tu zona, un asesor comercial exclusivo de Distribuidora Norte se comunicará directamente con vos a la brevedad para cerrar tu cotización personalizada. Por favor, para asignarte prioridad en nuestra fila de atención automatizada, facilítame tu Nombre completo y un número de celular de respaldo.'"""
+    
+    elif PLAN_ACTUAL == "Profesional":
+        # Plan Profesional (Ex Plan Intermedio): Derivación y transferencia en vivo
+        discurso_insuficiencia = """Si la respuesta NO figura en el contexto o te piden precios/tarjetas que no ves, responde EXACTAMENTE con este protocolo de transferencia:
+'Para brindarte los precios mayoristas exactos, promociones vigentes y las condiciones de cuenta corriente en este mismo momento, te voy a transferir en vivo y en directo con uno de nuestros asesores comerciales que se encuentra en línea. Aguardame un instante por favor, ya tomamos tu consulta...'"""
+    
+    else:
+        # Plan Empresa: Comportamiento premium corporativo de alta prioridad
+        discurso_insuficiencia = """Si la respuesta NO figura en el contexto, responde indicando que se eleva el caso al departamento de cuentas corporativas de forma inmediata:
+'Entendido. Para gestionar tu solicitud de volumen corporativo y aplicar las bonificaciones de gran escala correspondientes, estoy derivando tu consulta de forma prioritaria a nuestro Departamento de Cuentas Empresa. Un ejecutivo de cuentas senior tomará el control de este canal de manera inmediata.'"""
+
+    # 2. Construimos el System Prompt Dinámico
+    system_prompt = f"""Sos el asistente virtual de atención al cliente de Distribuidora Norte.
 Tu objetivo principal es ayudar al usuario con precios, stock o condiciones comerciales usando el contexto brindado.
 
 REGLAS ESTRÍCTAS:
-1. Responde de forma amable, clara y concisa (estilo vendedor argentino neutral-cordial). Usa viñetas (bullet points) para listar productos y precios de forma ordenada.
-2. Busca activamente los números, códigos y precios en el contexto. Si están ahí, bríndalos con total seguridad. No digas que no los tenés si figuran en el texto.
-3. Si el usuario te pregunta por precios o datos que NO figuran en el contexto bajo ningún concepto, responde: "No encuentro ese producto o precio en nuestra lista vigente. Por favor, aguardá en línea y te comunico con un asesor humano."
-4. NUNCA inventes precios, marcas, códigos o políticas que no estén explícitamente en el texto provisto.
+1. Responde de forma amable, clara y concisa (estilo vendedor argentino neutral-cordial). Usa viñetas (bullet points) para listar productos de forma ordenada.
+2. Busca activamente los números, códigos y datos en el contexto. Si están ahí, bríndalos con total seguridad.
+3. NUNCA inventes precios, marcas, códigos o políticas que no estén explícitamente en el texto provisto.
+4. GESTIÓN DE INFORMACIÓN INSUFICIENTE: {discurso_insuficiencia}
 """
 
     user_content = f"""Contexto del catálogo:\n{contexto}\n\nPregunta del usuario: {pregunta}"""
@@ -95,10 +117,9 @@ REGLAS ESTRÍCTAS:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_content}
         ],
-        temperature=0.3, # Temperatura ideal para mantenerlo creativo pero preciso con los datos
+        temperature=0.3,
     )
     return completion.choices[0].message.content
-
 
 @app.post("/api/chat", response_model=QueryResponse)
 def chat(req: QueryRequest):
