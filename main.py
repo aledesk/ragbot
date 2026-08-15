@@ -32,8 +32,15 @@ collection = chroma_client.get_or_create_collection(name=COLLECTION_NAME, metada
 with open(BASE_DIR / "chroma_db" / "vectorizer.pkl", "rb") as f:
     vectorizer = pickle.load(f)
 
+# Nueva clase auxiliar para estructurar los mensajes de la memoria conversacional
+class MessageItem(BaseModel):
+    role: str
+    content: str
+
+# Modificado para recibir la pregunta del usuario y el historial del chat en la misma petición
 class QueryRequest(BaseModel):
     pregunta: str
+    historial: List[MessageItem] = []
 
 class SourceItem(BaseModel):
     page: int
@@ -77,7 +84,7 @@ def recuperar_contexto(pregunta: str):
 # Opciones válidas: "Emprendedor", "Profesional", "Empresa"
 PLAN_ACTUAL = "Emprendedor" 
 
-def generar_respuesta(pregunta: str, contexto: str):
+def generar_respuesta(pregunta: str, contexto: str, historial: List[MessageItem]):
     client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
     
     discurso_insuficiencia = ""
@@ -98,7 +105,7 @@ def generar_respuesta(pregunta: str, contexto: str):
         CRITICAL RESTRICTION FOR PLAN_ACTUAL = "Emprendedor":
         1. If the user asks for a human, person, assistant, vendedor, advisor, contact data, OR if the user asks for products/services not present in the catalog context: You are STRICTLY FORBIDDEN from providing any email, phone, name, or contact information contained in the context (Do NOT mention Carlos Méndez or any email address).
         2. In any of those cases, you MUST ignore the context contact data completely and respond EXACTLY with this literal text: '{discurso_insuficiencia}'
-        3. Do not add any extra text, pleasantries, or explanations before or after that statement.
+        3. LOOP RETENTION RULE: Check the conversation history carefully. If you ALREADY sent this literal lead capture text in a previous message, and the user hasn't provided BOTH their Name and Phone Number yet, you MUST remain in this loop. Address the user directly in a friendly manner, acknowledge any single piece of info they gave you (like their name), but firmly demand the remaining missing field (e.g., "Gracias, ya registré tu nombre. Por favor, indícame ahora un número de celular/WhatsApp para finalizar tu derivación prioritaria"). DO NOT escape this state to talk about products or other general questions until BOTH details are captured.
         """
     
     elif PLAN_ACTUAL == "Profesional":
@@ -134,17 +141,21 @@ REGLAS ESTRICTAS DE COMPORTAMIENTO:
 {reglas_criticas_plan}
 """
 
+    # Inyección sistemática de la memoria conversacional para Groq
+    mensajes_groq = [{"role": "system", "content": system_prompt}]
+    
+    for msg in historial:
+        mensajes_groq.append({"role": msg.role, "content": msg.content})
+        
     user_content = f"Contexto del catálogo:\n{contexto}\n\nPregunta del usuario: {pregunta}"
+    mensajes_groq.append({"role": "user", "content": user_content})
 
     completion = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_content}
-        ],
-        temperature=0.1, # Bajamos a 0.1 para forzar obediencia absoluta al prompt y evitar alucinaciones
+        messages=mensajes_groq,
+        temperature=0.1, # Forzamos obediencia absoluta al prompt y evitamos alucinaciones
     )
-    return completion.choices[0].message.content
+    return completion.choices.message.content
 
 
 @app.post("/api/chat", response_model=QueryResponse)
@@ -152,7 +163,8 @@ def chat(req: QueryRequest):
     if not req.pregunta.strip():
         raise HTTPException(400, "Pregunta vacía")
     contexto, fuentes = recuperar_contexto(req.pregunta)
-    respuesta = generar_respuesta(req.pregunta, contexto)
+    # Pasamos el historial enviado desde el cliente
+    respuesta = generar_respuesta(req.pregunta, contexto, req.historial)
     return QueryResponse(respuesta=respuesta, fuentes=fuentes, pregunta=req.pregunta)
 
 @app.get("/api/health")
